@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word转HTML工具 - 科研文章生成器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .header h1 { font-size: 32px; margin-bottom: 10px; }
+        .header p { opacity: 0.8; font-size: 16px; }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            min-height: 700px;
+        }
+        @media (max-width: 768px) {
+            .main-content { grid-template-columns: 1fr; }
+        }
+        
+        .panel {
+            padding: 30px;
+            overflow-y: auto;
+            max-height: 900px;
+        }
+        .panel-left { border-right: 1px solid #e5e7eb; }
+        
+        .panel-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .panel-title .icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+        
+        .upload-section { margin-bottom: 20px; }
+        .upload-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+        .upload-area {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            background: #f8fafc;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .upload-area:hover { border-color: #667eea; background: #f0f4ff; }
+        .upload-icon { font-size: 32px; margin-bottom: 8px; }
+        .upload-text { color: #64748b; font-size: 14px; margin-bottom: 4px; }
+        .upload-hint { color: #94a3b8; font-size: 12px; }
+        input[type="file"] { display: none; }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 5px;
+        }
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+            line-height: 1.6;
+        }
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            background: #f3f4f6;
+            padding: 5px;
+            border-radius: 8px;
+        }
+        .tab {
+            flex: 1;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            font-size: 13px;
+            color: #6b7280;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            background: white;
+            color: #1f2937;
+            font-weight: 500;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .image-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .image-item {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e5e7eb;
+            cursor: move;
+            background: #f8fafc;
+        }
+        .image-item img { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: contain;
+            background: #f8fafc;
+        }
+        .image-item .remove {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .image-item .index {
+            position: absolute;
+            bottom: 2px;
+            left: 2px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-top: 20px;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        
+        .preview-container {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            height: 100%;
+        }
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .preview-actions { display: flex; gap: 8px; }
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background: white;
+            cursor: pointer;
+        }
+        .preview-frame {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 10px;
+            display: none;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .status-bar {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+        .status-bar.success { background: #dcfce7; color: #166534; border: 1px solid #86efac; display: block; }
+        .status-bar.error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; display: block; }
+        .status-bar.info { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; display: block; }
+        
+        .section-divider {
+            border-top: 2px solid #e5e7eb;
+            margin: 20px 0;
+            padding-top: 20px;
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .image-counter {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+        
+        .parse-info {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            color: #0369a1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📝 Word转HTML工具</h1>
+            <p>上传Word文档，自动生成格式统一的科研文章HTML</p>
+        </div>
+
+        <div class="main-content">
+            <!-- 左侧面板：输入区域 -->
+            <div class="panel panel-left">
+                <div class="panel-title">
+                    <div class="icon">📤</div>
+                    输入设置
+                </div>
+
+                <!-- 标签页 -->
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab('files')">文件上传</button>
+                    <button class="tab" onclick="switchTab('content')">内容编辑</button>
+                    <button class="tab" onclick="switchTab('settings')">页面设置</button>
+                </div>
+
+                <!-- 文件标签页 -->
+                <div id="files-tab" class="tab-content active">
+                    <div class="upload-section">
+                        <label class="upload-label">1. 上传Word文档 (.docx)</label>
+                        <div class="upload-area" onclick="document.getElementById('word-input').click()">
+                            <div class="upload-icon">📄</div>
+                            <div class="upload-text">点击上传Word文档</div>
+                            <div class="upload-hint">自动提取文字和所有嵌入图片</div>
+                            <input type="file" id="word-input" accept=".docx" onchange="handleWordUpload(event)">
+                        </div>
+                    </div>
+
+                    <div class="upload-section">
+                        <label class="upload-label">2. 上传Logo（可选）</label>
+                        <div class="upload-area" onclick="document.getElementById('logo-input').click()">
+                            <div class="upload-icon">🏢</div>
+                            <div class="upload-text">点击上传公司Logo</div>
+                            <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(event)">
+                        </div>
+                        <div id="logo-preview" style="margin-top: 10px;"></div>
+                    </div>
+
+                    <div class="upload-section">
+                        <label class="upload-label">3. 文档图片管理</label>
+                        <div id="image-counter" class="image-counter" style="display: none;">0 张图片</div>
+                        <div id="word-images-list" class="image-list"></div>
+                        <div class="upload-area" onclick="document.getElementById('image-input').click()" style="margin-top: 10px; padding: 15px;">
+                            <div class="upload-icon" style="font-size: 24px;">➕</div>
+                            <div class="upload-text" style="font-size: 13px;">添加更多图片</div>
+                            <input type="file" id="image-input" accept="image/*" multiple onchange="handleExtraImages(event)">
+                        </div>
+                        <p style="font-size: 12px; color: #6b7280; margin-top: 8px;">
+                            💡 提示：图片按Word文档中的顺序自动插入正文
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 内容编辑标签页 -->
+                <div id="content-tab" class="tab-content">
+                    <div class="parse-info">
+                        <strong>自动识别说明：</strong>上传Word后，系统会自动识别文章结构并填充以下文本框。您可以直接修改任何文本框内容。
+                    </div>
+                    
+                    <div class="section-title">文章标题</div>
+                    <div class="form-group">
+                        <label>主标题</label>
+                        <input type="text" id="input-title" placeholder="例如：突破性进展：最高效的GMP级[¹⁸F]DPA-714自动化合成方案">
+                    </div>
+                    <div class="form-group">
+                        <label>副标题（位于标题下方，可选）</label>
+                        <input type="text" id="input-subtitle" placeholder="例如：基于TRASIS AllinOne模块的优化研究">
+                    </div>
+                    
+                    <div class="section-divider"></div>
+                    <div class="section-title">文章前言（第一自然段）</div>
+                    <div class="form-group">
+                        <label>前言内容</label>
+                        <textarea id="input-intro" rows="5" placeholder="输入文章前言，将显示在蓝色背景框中..."></textarea>
+                    </div>
+
+                    <div class="section-divider"></div>
+                    <div class="section-title">正文部分</div>
+                    <div class="form-group">
+                        <label>正文内容（段落之间用空行分隔，图片按顺序自动插入）</label>
+                        <textarea id="input-body" rows="10" placeholder="输入正文内容..."></textarea>
+                    </div>
+
+                    <div class="section-divider"></div>
+                    <div class="section-title">核心成果（对应Word中"核心成果"部分）</div>
+                    <div class="form-group">
+                        <label>核心成果内容（纯文本段落）</label>
+                        <textarea id="input-highlights" rows="6" placeholder="输入核心成果内容，将以纯文本段落形式显示..."></textarea>
+                    </div>
+
+                    <div class="section-divider"></div>
+                    <div class="section-title">总结与优势</div>
+                    <div class="form-group">
+                        <label>总结内容</label>
+                        <textarea id="input-summary" rows="6" placeholder="输入总结与优势内容..."></textarea>
+                    </div>
+
+                    <div class="section-divider"></div>
+                    <div class="section-title">参考文献</div>
+                    <div class="form-group">
+                        <label>文献内容</label>
+                        <textarea id="input-references" rows="4" placeholder="输入参考文献内容..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>DOI链接（可选）</label>
+                        <input type="text" id="input-doi" placeholder="https://doi.org/10.1186/s41181-021-00133-0">
+                    </div>
+                </div>
+
+                <!-- 页面设置标签页 -->
+                <div id="settings-tab" class="tab-content">
+                    <div class="section-title">公司信息</div>
+                    <div class="form-group">
+                        <label>公司名称</label>
+                        <input type="text" id="setting-company" value="创思派特生物技术（北京）有限公司">
+                    </div>
+                    <div class="form-group">
+                        <label>公司地址</label>
+                        <input type="text" id="setting-address" value="北京市石景山区古盛路36号院1号楼11层">
+                    </div>
+                    <div class="form-group">
+                        <label>销售邮箱</label>
+                        <input type="email" id="setting-sales" value="order@trasis.com.cn">
+                    </div>
+                    <div class="form-group">
+                        <label>技术邮箱</label>
+                        <input type="email" id="setting-support" value="service@trasis.com.cn">
+                    </div>
+
+                    <div class="section-divider"></div>
+                    <div class="section-title">生成选项</div>
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer;">
+                            <input type="checkbox" id="opt-compress" checked style="accent-color: #667eea;">
+                            <span>压缩图片（优化手机加载）</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="generate-btn" onclick="generateHTML()">
+                    <span>⚡</span>
+                    <span>生成HTML</span>
+                </button>
+
+                <div class="progress-bar" id="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div id="status-message" class="status-bar"></div>
+            </div>
+
+            <!-- 右侧面板：预览区域 -->
+            <div class="panel">
+                <div class="panel-title">
+                    <div class="icon">👁️</div>
+                    实时预览
+                </div>
+                <div class="preview-container">
+                    <div class="preview-header">
+                        <span style="font-size: 14px; font-weight: 600; color: #374151;">预览效果</span>
+                        <div class="preview-actions">
+                            <button class="btn-small" onclick="refreshPreview()">🔄 刷新</button>
+                            <button class="btn-small" onclick="downloadHTML()">⬇️ 下载</button>
+                            <button class="btn-small" onclick="copyHTML()">📋 复制</button>
+                        </div>
+                    </div>
+                    <iframe id="preview-frame" class="preview-frame"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let state = {
+            images: [],
+            logo: null,
+            generatedHTML: '',
+            parsedStructure: {
+                title: '',
+                subtitle: '',
+                intro: '',
+                body: [],
+                highlights: '',
+                summary: '',
+                references: []
+            }
+        };
+
+        // 切换标签页
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabId + '-tab').classList.add('active');
+        }
+
+        // 处理Word上传
+        async function handleWordUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showStatus('正在读取Word文档...', 'info');
+            document.getElementById('progress-bar').style.display = 'block';
+            updateProgress(10);
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                
+                // 提取图片（保持顺序）
+                const zip = await JSZip.loadAsync(arrayBuffer);
+                const extractedImages = [];
+                
+                // 获取图片ID映射
+                let imageIdMap = {};
+                try {
+                    const relsContent = await zip.file('word/_rels/document.xml.rels')?.async('text');
+                    if (relsContent) {
+                        const parser = new DOMParser();
+                        const relsDoc = parser.parseFromString(relsContent, 'application/xml');
+                        const relationships = relsDoc.querySelectorAll('Relationship');
+                        relationships.forEach(rel => {
+                            const id = rel.getAttribute('Id');
+                            const target = rel.getAttribute('Target');
+                            if (target && target.includes('media/')) {
+                                imageIdMap[id] = target;
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.log('解析rels文件失败:', e);
+                }
+                
+                updateProgress(30);
+                
+                // 按document.xml中的顺序提取图片
+                try {
+                    const docContent = await zip.file('word/document.xml')?.async('text');
+                    if (docContent) {
+                        const blipRegex = /<a:blip[^>]*r:embed="([^"]*)"[^>]*>/g;
+                        let match;
+                        const imageOrder = [];
+                        
+                        while ((match = blipRegex.exec(docContent)) !== null) {
+                            const embedId = match[1];
+                            const imagePath = imageIdMap[embedId];
+                            if (imagePath && !imageOrder.includes(imagePath)) {
+                                imageOrder.push(imagePath);
+                            }
+                        }
+                        
+                        for (const imagePath of imageOrder) {
+                            const imageFile = zip.file('word/' + imagePath);
+                            if (imageFile) {
+                                try {
+                                    const imageData = await imageFile.async('base64');
+                                    const ext = imagePath.split('.').pop().toLowerCase();
+                                    let mimeType = 'image/jpeg';
+                                    if (ext === 'png') mimeType = 'image/png';
+                                    else if (ext === 'gif') mimeType = 'image/gif';
+                                    
+                                    extractedImages.push({
+                                        name: imagePath.split('/').pop(),
+                                        data: `data:${mimeType};base64,${imageData}`,
+                                        path: imagePath
+                                    });
+                                } catch (e) {
+                                    console.warn('提取图片失败:', imagePath);
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log('解析document.xml失败:', e);
+                }
+                
+                // 备用方案
+                if (extractedImages.length === 0) {
+                    const mediaFiles = Object.keys(zip.files).filter(f => 
+                        f.match(/word\/media\/.+\.(png|jpg|jpeg|gif|bmp)/i)
+                    );
+                    
+                    for (const filename of mediaFiles) {
+                        try {
+                            const imageData = await zip.files[filename].async('base64');
+                            const ext = filename.split('.').pop().toLowerCase();
+                            let mimeType = 'image/jpeg';
+                            if (ext === 'png') mimeType = 'image/png';
+                            
+                            extractedImages.push({
+                                name: filename.split('/').pop(),
+                                data: `data:${mimeType};base64,${imageData}`,
+                                path: filename
+                            });
+                        } catch (e) {
+                            console.warn('提取图片失败:', filename);
+                        }
+                    }
+                }
+                
+                updateProgress(50);
+                
+                // 提取文本
+                const result = await mammoth.convertToHtml({ 
+                    arrayBuffer: arrayBuffer,
+                    convertImage: mammoth.images.imgElement(function(image) {
+                        return image.read("base64").then(function(imageBuffer) {
+                            return { src: "data:" + image.contentType + ";base64," + imageBuffer };
+                        });
+                    })
+                });
+                
+                updateProgress(70);
+                
+                state.images = extractedImages;
+                updateImagesList();
+                
+                // 解析内容
+                parseDocumentStructure(result.value);
+                
+                updateProgress(100);
+                setTimeout(() => {
+                    document.getElementById('progress-bar').style.display = 'none';
+                    showStatus(`成功读取！提取了 ${state.images.length} 张图片`, 'success');
+                    document.querySelector('.tab:nth-child(2)').click();
+                }, 300);
+
+            } catch (error) {
+                document.getElementById('progress-bar').style.display = 'none';
+                showStatus('读取失败：' + error.message, 'error');
+                console.error(error);
+            }
+        }
+
+        // 解析文档结构 - 改进识别逻辑
+        function parseDocumentStructure(html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // 获取所有段落和标题
+            const elements = Array.from(doc.body.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li'));
+            const contentItems = [];
+            
+            elements.forEach(el => {
+                const text = el.textContent.trim();
+                if (text.length > 0 && 
+                    !text.match(/^图\s*\d+/i) && 
+                    !text.match(/^table\s*\d+/i) &&
+                    !text.match(/^媒体\/image\d+/i)) {
+                    contentItems.push({
+                        text: text,
+                        tagName: el.tagName.toLowerCase(),
+                        isHeading: el.tagName.match(/^H[1-6]$/) !== null
+                    });
+                }
+            });
+            
+            if (contentItems.length === 0) return;
+            
+            // 重置结构
+            state.parsedStructure = {
+                title: '',
+                subtitle: '',
+                intro: '',
+                body: [],
+                highlights: '',
+                summary: '',
+                references: []
+            };
+            
+            let currentIndex = 0;
+            
+            // 1. 提取标题
+            if (contentItems[0].isHeading || contentItems[0].text.length < 100) {
+                state.parsedStructure.title = contentItems[0].text;
+                document.getElementById('input-title').value = contentItems[0].text;
+                currentIndex = 1;
+            }
+            
+            // 2. 提取副标题
+            if (currentIndex < contentItems.length && 
+                (contentItems[currentIndex].isHeading || 
+                 (contentItems[currentIndex].text.length < 80 && contentItems[currentIndex].text.length > 10))) {
+                const text = contentItems[currentIndex].text;
+                if (!isSectionTitle(text)) {
+                    state.parsedStructure.subtitle = text;
+                    document.getElementById('input-subtitle').value = text;
+                    currentIndex++;
+                }
+            }
+            
+            // 3. 提取前言
+            let introFound = false;
+            for (let i = currentIndex; i < contentItems.length; i++) {
+                const item = contentItems[i];
+                if (item.text.length > 150 && !isSectionTitle(item.text)) {
+                    state.parsedStructure.intro = item.text;
+                    document.getElementById('input-intro').value = item.text;
+                    currentIndex = i + 1;
+                    introFound = true;
+                    break;
+                }
+            }
+            
+            if (!introFound) currentIndex = Math.min(currentIndex + 1, contentItems.length);
+            
+            // 4. 按章节分类内容 - 改进识别逻辑
+            let currentSection = 'body';
+            let sectionBuffer = []; // 用于收集当前章节的内容
+            
+            for (let i = currentIndex; i < contentItems.length; i++) {
+                const item = contentItems[i];
+                const text = item.text;
+                const lowerText = text.toLowerCase();
+                
+                // 检测章节标题
+                if (isSectionTitle(text)) {
+                    // 保存之前章节的内容
+                    saveSectionContent(currentSection, sectionBuffer);
+                    sectionBuffer = [];
+                    
+                    // 确定新章节
+                    if ((text.includes('核心成果') || text.includes('成果亮点')) && text.length < 20) {
+                        currentSection = 'highlights';
+                        continue;
+                    }
+                    if ((text.includes('总结') || text.includes('优势') || text.includes('总结与优势')) && text.length < 20) {
+                        currentSection = 'summary';
+                        continue;
+                    }
+                    if ((text.includes('参考') || text.includes('文献')) && text.length < 20) {
+                        currentSection = 'references';
+                        continue;
+                    }
+                    // 其他标题归入正文
+                    if (item.isHeading && text.length < 50) {
+                        sectionBuffer.push(text);
+                    }
+                    continue;
+                }
+                
+                // 收集内容
+                if (text.length > 10) {
+                    sectionBuffer.push(text);
+                }
+            }
+            
+            // 保存最后一个章节
+            saveSectionContent(currentSection, sectionBuffer);
+            
+            // 填充表单
+            fillFormWithParsedContent();
+            
+            // 提取DOI
+            const allText = contentItems.map(item => item.text).join(' ');
+            const doiMatch = allText.match(/(10\.\d{4,}\/[^\s"<>]+)/);
+            if (doiMatch) {
+                document.getElementById('input-doi').value = `https://doi.org/${doiMatch[1]}`;
+            }
+        }
+
+        // 保存章节内容
+        function saveSectionContent(section, buffer) {
+            if (buffer.length === 0) return;
+            
+            const content = buffer.join('\n\n');
+            
+            switch(section) {
+                case 'body':
+                    state.parsedStructure.body = buffer;
+                    break;
+                case 'highlights':
+                    state.parsedStructure.highlights = content;
+                    break;
+                case 'summary':
+                    state.parsedStructure.summary = content;
+                    break;
+                case 'references':
+                    state.parsedStructure.references = buffer;
+                    break;
+            }
+        }
+
+        // 判断是否是章节标题
+        function isSectionTitle(text) {
+            const titles = ['核心成果', '成果亮点', '总结', '优势', '总结与优势', '参考文献', 
+                           'highlight', 'summary', 'conclusion', 'reference'];
+            const lowerText = text.toLowerCase();
+            return titles.some(t => lowerText.includes(t.toLowerCase())) && text.length < 30;
+        }
+
+        // 填充表单
+        function fillFormWithParsedContent() {
+            if (state.parsedStructure.body.length > 0) {
+                document.getElementById('input-body').value = state.parsedStructure.body.join('\n\n');
+            }
+            if (state.parsedStructure.highlights) {
+                document.getElementById('input-highlights').value = state.parsedStructure.highlights;
+            }
+            if (state.parsedStructure.summary) {
+                document.getElementById('input-summary').value = state.parsedStructure.summary;
+            }
+            if (state.parsedStructure.references.length > 0) {
+                document.getElementById('input-references').value = state.parsedStructure.references.join('\n');
+            }
+        }
+
+        // 更新图片列表
+        function updateImagesList() {
+            const container = document.getElementById('word-images-list');
+            const counter = document.getElementById('image-counter');
+            
+            container.innerHTML = '';
+            
+            if (state.images.length > 0) {
+                counter.textContent = `${state.images.length} 张图片`;
+                counter.style.display = 'inline-block';
+            } else {
+                counter.style.display = 'none';
+            }
+            
+            state.images.forEach((img, index) => {
+                const item = document.createElement('div');
+                item.className = 'image-item';
+                item.draggable = true;
+                item.dataset.index = index;
+                item.innerHTML = `
+                    <img src="${img.data}" alt="${img.name}" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\'display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:12px;\'>图片${index + 1}</div>'">
+                    <button class="remove" onclick="removeImage(${index})">×</button>
+                    <span class="index">${index + 1}</span>
+                `;
+                
+                item.addEventListener('dragstart', handleDragStart);
+                item.addEventListener('dragover', handleDragOver);
+                item.addEventListener('drop', handleDrop);
+                item.addEventListener('dragend', handleDragEnd);
+                
+                container.appendChild(item);
+            });
+        }
+
+        let dragSrcEl = null;
+
+        function handleDragStart(e) {
+            dragSrcEl = this;
+            e.dataTransfer.effectAllowed = 'move';
+            this.style.opacity = '0.4';
+        }
+
+        function handleDragOver(e) {
+            if (e.preventDefault) e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDrop(e) {
+            if (e.stopPropagation) e.stopPropagation();
+            if (dragSrcEl !== this) {
+                const srcIndex = parseInt(dragSrcEl.dataset.index);
+                const targetIndex = parseInt(this.dataset.index);
+                
+                const temp = state.images[srcIndex];
+                state.images[srcIndex] = state.images[targetIndex];
+                state.images[targetIndex] = temp;
+                
+                updateImagesList();
+            }
+            return false;
+        }
+
+        function handleDragEnd() {
+            this.style.opacity = '1';
+        }
+
+        // 删除图片
+        function removeImage(index) {
+            state.images.splice(index, 1);
+            updateImagesList();
+        }
+
+        // 处理额外图片上传
+        function handleExtraImages(event) {
+            const files = Array.from(event.target.files);
+            const compress = document.getElementById('opt-compress').checked;
+            
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (compress) {
+                        compressImage(e.target.result, file.type).then(data => {
+                            state.images.push({
+                                name: file.name,
+                                data: data,
+                                source: 'upload'
+                            });
+                            updateImagesList();
+                        });
+                    } else {
+                        state.images.push({
+                            name: file.name,
+                            data: e.target.result,
+                            source: 'upload'
+                        });
+                        updateImagesList();
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 压缩图片
+        function compressImage(dataUrl, mimeType) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    const maxWidth = 1200;
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > maxWidth) {
+                        height = (maxWidth / width) * height;
+                        width = maxWidth;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    resolve(canvas.toDataURL(mimeType || 'image/jpeg', 0.9));
+                };
+                img.onerror = () => resolve(dataUrl);
+                img.src = dataUrl;
+            });
+        }
+
+        // 处理Logo上传
+        function handleLogoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                compressImage(e.target.result, file.type).then(data => {
+                    state.logo = data;
+                    document.getElementById('logo-preview').innerHTML = `
+                        <img src="${data}" style="max-width: 200px; max-height: 100px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    `;
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 生成HTML
+        function generateHTML() {
+            const btn = document.getElementById('generate-btn');
+            btn.disabled = true;
+            document.getElementById('progress-bar').style.display = 'block';
+            
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 25;
+                updateProgress(progress);
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    finishGeneration();
+                }
+            }, 150);
+        }
+
+        // 完成生成
+        function finishGeneration() {
+            const inputs = {
+                title: document.getElementById('input-title').value,
+                subtitle: document.getElementById('input-subtitle').value,
+                intro: document.getElementById('input-intro').value,
+                body: document.getElementById('input-body').value,
+                highlights: document.getElementById('input-highlights').value,
+                summary: document.getElementById('input-summary').value,
+                references: document.getElementById('input-references').value,
+                doi: document.getElementById('input-doi').value,
+                company: document.getElementById('setting-company').value,
+                address: document.getElementById('setting-address').value,
+                salesEmail: document.getElementById('setting-sales').value,
+                supportEmail: document.getElementById('setting-support').value
+            };
+
+            state.generatedHTML = buildHTML(inputs);
+            
+            document.getElementById('preview-frame').srcdoc = state.generatedHTML;
+            document.getElementById('progress-bar').style.display = 'none';
+            document.getElementById('generate-btn').disabled = false;
+            
+            showStatus('HTML生成成功！', 'success');
+        }
+
+        // 构建HTML
+        function buildHTML(inputs) {
+            // 处理正文
+            let bodyHTML = '';
+            const paragraphs = inputs.body.split('\n\n').filter(p => p.trim());
+            let imgIndex = 0;
+            
+            paragraphs.forEach((para) => {
+                if (para.trim()) {
+                    bodyHTML += `<p>${para}</p>`;
+                    
+                    if (imgIndex < state.images.length) {
+                        bodyHTML += `
+                            <div class="figure-container">
+                                <img src="${state.images[imgIndex].data}" alt="图${imgIndex + 1}" class="figure-image">
+                            </div>
+                        `;
+                        imgIndex++;
+                    }
+                }
+            });
+            
+            // 处理核心成果 - 纯文本段落
+            let highlightsHTML = '';
+            if (inputs.highlights.trim()) {
+                const paragraphs = inputs.highlights.split('\n\n').filter(p => p.trim());
+                highlightsHTML = `
+                    <div class="highlight-box">
+                        <h3 class="highlight-title">核心成果</h3>
+                        <div class="highlight-content">
+                            ${paragraphs.map(p => `<p>${p}</p>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 处理总结与优势
+            let summaryHTML = '';
+            if (inputs.summary.trim()) {
+                const paragraphs = inputs.summary.split('\n\n').filter(p => p.trim());
+                summaryHTML = `
+                    <div class="summary-section">
+                        <h3 class="summary-title">总结与优势</h3>
+                        <div class="summary-content">
+                            ${paragraphs.map(p => `<p class="summary-text">${p}</p>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 处理参考文献
+            let referencesHTML = '';
+            if (inputs.references.trim() || inputs.doi) {
+                let refText = inputs.references;
+                if (inputs.doi) {
+                    const doi = inputs.doi.replace('https://doi.org/', '');
+                    if (!refText.includes(inputs.doi)) {
+                        refText += (refText ? '<br>' : '') + `<a href="${inputs.doi}" target="_blank">${inputs.doi}</a>`;
+                    } else {
+                        refText = refText.replace(doi, `<a href="${inputs.doi}" target="_blank">${doi}</a>`);
+                    }
+                }
+                
+                referencesHTML = `
+                    <div class="reference-section">
+                        <h4 class="reference-title">参考文献</h4>
+                        <p class="reference-text">${refText}</p>
+                        <p class="disclaimer">
+                            *本文基于学术论文进行专业梳理，旨在分享最新科研进展。实际生产与应用需严格遵守相关法规和指南。*
+                        </p>
+                    </div>
+                `;
+            }
+            
+            // Logo处理
+            const logoHTML = state.logo ? 
+                `<div class="logo-container"><img src="${state.logo}" alt="${inputs.company}" class="logo"></div>` : '';
+            const footerLogoHTML = state.logo ? 
+                `<img src="${state.logo}" alt="${inputs.company}" class="footer-logo">` : '';
+
+            // 构建完整HTML - Logo居中，公司信息左对齐
+            return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>${inputs.title}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+            color: #334155;
+            line-height: 1.8;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        .container {
+            max-width: 680px;
+            margin: 0 auto;
+            background: #ffffff;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%);
+            padding: 40px 24px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(56, 189, 248, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(251, 191, 36, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+        
+        .logo-container {
+            margin-bottom: 24px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .logo {
+            width: 200px;
+            height: auto;
+            filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+            background: #ffffff;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .header-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1.4;
+            position: relative;
+            z-index: 1;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header-subtitle {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-top: 12px;
+            position: relative;
+            z-index: 1;
+            font-weight: 500;
+        }
+        
+        .content {
+            padding: 32px 24px;
+        }
+        
+        .intro-section {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-left: 4px solid #0ea5e9;
+            padding: 20px;
+            border-radius: 0 12px 12px 0;
+            margin-bottom: 32px;
+        }
+        
+        .intro-text {
+            font-size: 15px;
+            color: #475569;
+            line-height: 1.9;
+        }
+        
+        .section {
+            margin-bottom: 36px;
+        }
+        
+        .section-content {
+            font-size: 15px;
+            color: #475569;
+            line-height: 1.9;
+        }
+        
+        .section-content p {
+            margin-bottom: 16px;
+            text-align: justify;
+        }
+        
+        .highlight-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 1px solid #fbbf24;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .highlight-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #92400e;
+            margin-bottom: 12px;
+        }
+        
+        .highlight-content {
+            font-size: 14px;
+            color: #78350f;
+            line-height: 1.8;
+        }
+        
+        .highlight-content p {
+            margin-bottom: 12px;
+        }
+        
+        .highlight-content p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .figure-container {
+            margin: 24px 0;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+        
+        .figure-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .summary-section {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-radius: 16px;
+            padding: 28px;
+            margin: 32px 0;
+            border: 1px solid #bfdbfe;
+        }
+        
+        .summary-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e40af;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        
+        .summary-content {
+            font-size: 15px;
+            color: #1e3a8a;
+            line-height: 1.9;
+        }
+        
+        .summary-content p {
+            margin-bottom: 12px;
+        }
+        
+        .summary-content p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .reference-section {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 32px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .reference-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 12px;
+        }
+        
+        .reference-text {
+            font-size: 13px;
+            color: #64748b;
+            line-height: 1.7;
+            font-style: italic;
+        }
+        
+        .reference-text a {
+            color: #0ea5e9;
+            text-decoration: none;
+        }
+        
+        .reference-text a:hover {
+            text-decoration: underline;
+        }
+        
+        .disclaimer {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px dashed #cbd5e1;
+            font-size: 12px;
+            color: #94a3b8;
+            font-style: italic;
+        }
+        
+        .footer {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            padding: 40px 24px;
+            color: #ffffff;
+        }
+        
+        .footer-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .footer-logo-container {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .footer-logo {
+            width: 160px;
+            height: auto;
+            background: #ffffff;
+            padding: 8px;
+            border-radius: 8px;
+        }
+        
+        .company-info-container {
+            text-align: left;
+        }
+        
+        .company-name {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #fbbf24;
+        }
+        
+        .contact-list {
+            list-style: none;
+            padding: 0;
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 2;
+        }
+        
+        .contact-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin: 8px 0;
+        }
+        
+        .contact-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.7;
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+        
+        .contact-text {
+            flex: 1;
+            word-break: break-all;
+        }
+        
+        .email-link {
+            color: #38bdf8;
+            text-decoration: none;
+        }
+        
+        .email-link:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 480px) {
+            .header { padding: 32px 20px; }
+            .header-title { font-size: 20px; }
+            .header-subtitle { font-size: 13px; }
+            .content { padding: 24px 16px; }
+            .logo { width: 160px; }
+            .footer-logo { width: 140px; }
+            .company-name { font-size: 18px; }
+        }
+        
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            ${logoHTML}
+            <h1 class="header-title">${inputs.title}</h1>
+            ${inputs.subtitle ? `<p class="header-subtitle">${inputs.subtitle}</p>` : ''}
+        </header>
+
+        <div class="content">
+            ${inputs.intro ? `
+            <div class="intro-section">
+                <p class="intro-text">${inputs.intro}</p>
+            </div>
+            ` : ''}
+
+            <div class="section">
+                <div class="section-content">
+                    ${bodyHTML}
+                </div>
+            </div>
+
+            ${highlightsHTML}
+            ${summaryHTML}
+            ${referencesHTML}
+        </div>
+
+        <footer class="footer">
+            <div class="footer-container">
+                <div class="footer-logo-container">
+                    ${footerLogoHTML}
+                </div>
+                <div class="company-info-container">
+                    <div class="company-name">${inputs.company}</div>
+                    <ul class="contact-list">
+                        <li class="contact-item">
+                            <svg class="contact-icon" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="contact-text">${inputs.address}</span>
+                        </li>
+                        <li class="contact-item">
+                            <svg class="contact-icon" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                            </svg>
+                            <span class="contact-text">销售咨询：<a href="mailto:${inputs.salesEmail}" class="email-link">${inputs.salesEmail}</a></span>
+                        </li>
+                        <li class="contact-item">
+                            <svg class="contact-icon" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-2 0c0 .993-.241 1.929-.668 2.754l-1.524-1.525a3.997 3.997 0 00.078-2.183l1.562-1.562C15.802 8.249 16 9.1 16 10zm-5.165 3.913l1.58 1.58A5.98 5.98 0 0110 16a5.976 5.98 0 01-2.516-.552l1.562-1.562a4.006 4.006 0 001.789.027zm-4.677-2.796a4.002 4.002 0 01-.041-2.08l-.08.08-1.53-1.533A5.98 5.98 0 004 10c0 .954.223 1.856.619 2.657l1.54-1.54zm1.088-6.45A5.974 5.974 0 0110 4c.954 0 1.856.223 2.657.619l-1.54 1.54a4.002 4.002 0 00-2.346.033L7.246 4.668zM12 10a2 2 0 11-4 0 2 2 0 014 0z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="contact-text">技术支持：<a href="mailto:${inputs.supportEmail}" class="email-link">${inputs.supportEmail}</a></span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>`;
+        }
+
+        // 更新进度条
+        function updateProgress(percent) {
+            document.getElementById('progress-fill').style.width = percent + '%';
+        }
+
+        // 显示状态
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('status-message');
+            statusEl.textContent = message;
+            statusEl.className = 'status-bar ' + type;
+            if (type === 'success') {
+                setTimeout(() => statusEl.style.display = 'none', 3000);
+            }
+        }
+
+        // 刷新预览
+        function refreshPreview() {
+            if (state.generatedHTML) {
+                document.getElementById('preview-frame').srcdoc = state.generatedHTML;
+            }
+        }
+
+        // 下载HTML
+        function downloadHTML() {
+            if (!state.generatedHTML) {
+                showStatus('请先生成HTML', 'error');
+                return;
+            }
+            const blob = new Blob([state.generatedHTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (document.getElementById('input-title').value || 'article') + '.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showStatus('下载已开始', 'success');
+        }
+
+        // 复制HTML
+        function copyHTML() {
+            if (!state.generatedHTML) {
+                showStatus('请先生成HTML', 'error');
+                return;
+            }
+            navigator.clipboard.writeText(state.generatedHTML).then(() => {
+                showStatus('HTML代码已复制', 'success');
+            }).catch(() => {
+                showStatus('复制失败', 'error');
+            });
+        }
+    </script>
+</body>
+</html>
